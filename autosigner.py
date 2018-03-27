@@ -32,12 +32,10 @@ def clean_cert(hostname):
     cert_file_path = '{0}/certs/{1}.pem'.format(puppet_ssl_path, hostname)
     if os.path.exists(req_file_path):
         os.remove(req_file_path)
-    else:
-        try:
-            os.remove(sig_file_path)
-            os.remove(cert_file_path)
-        except:
-            pass
+    if os.path.exists(sig_file_path):
+        os.remove(sig_file_path)
+    if os.path.exists(cert_file_path):
+        os.remove(cert_file_path)
 
 
 def save_cert(stdin, tmp_file):
