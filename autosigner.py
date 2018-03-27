@@ -8,7 +8,7 @@ import subprocess
 import google.auth.transport.requests
 
 from google.oauth2 import id_token
-from .local import project_numbers
+from local import project_numbers
 
 
 # Set up the parsing of the hostname which will be used to create the temp file
