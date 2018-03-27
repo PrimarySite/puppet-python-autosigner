@@ -25,6 +25,22 @@ tmp_file = '/tmp/{0}'.format(cmdargs.hostname)
 audience = 'http://{}'.format(cmdargs.hostname)
 
 
+def clean_cert(hostname):
+    req_file_path = '/var/puppet/ssl/ca/requests/{}'.format(hostname)
+    if os.path.exists(req_file_path):
+        os.remove(req_file_path)
+    else:
+        try:
+            subprocess.Popen([
+                '/usr/local/bin/puppet',
+                'cert',
+                'clean',
+                hostname
+            ]).communicate()
+        except:
+            pass
+
+
 def save_cert(stdin, tmp_file):
     # We need to save this as a file so that the system tools can
     # access it
@@ -104,6 +120,7 @@ def check_payload(payload):
 
 
 def main(stdin):
+    clean_cert(cmdargs.hostname)
     save_cert(stdin,tmp_file)
     token = get_challenge_password(tmp_file)
     payload = check_jwt(audience, token)
