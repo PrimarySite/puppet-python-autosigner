@@ -26,18 +26,18 @@ audience = 'http://{}'.format(cmdargs.hostname)
 
 
 def clean_cert(hostname):
-    puppet_ssl_path = '/var/puppet/ssl'
-    req_file_path = '{0}/ca/requests/{1}'.format(puppet_ssl_path, hostname)
-    sig_file_path = '{0}/ca/signed/{1}.pem'.format(puppet_ssl_path, hostname)
-    cert_file_path = '{0}/certs/{1}.pem'.format(puppet_ssl_path, hostname)
-    if os.path.exists(req_file_path):
-        os.remove(req_file_path)
-    else:
-        try:
-            os.remove(sig_file_path)
-            os.remove(cert_file_path)
-        except:
-            pass
+puppet_ssl_path = '/var/puppet/ssl'
+req_file_path = '{0}/ca/requests/{1}.pem'.format(puppet_ssl_path, hostname)
+sig_file_path = '{0}/ca/signed/{1}.pem'.format(puppet_ssl_path, hostname)
+cert_file_path = '{0}/certs/{1}.pem'.format(puppet_ssl_path, hostname)
+if os.path.exists(req_file_path):
+    os.remove(req_file_path)
+else:
+    try:
+        os.remove(sig_file_path)
+        os.remove(cert_file_path)
+    except:
+        pass
 
 
 def save_cert(stdin, tmp_file):
