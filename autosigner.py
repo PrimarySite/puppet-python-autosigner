@@ -27,7 +27,7 @@ audience = 'http://{}'.format(cmdargs.hostname)
 
 def clean_cert(hostname):
     req_file_path = '/var/puppet/ssl/ca/requests/{0}'.format(hostname)
-    sig_file_path = '/var/puppet/ssl/signed/{0}.pem'.format(hostname)
+    sig_file_path = '/var/puppet/ssl/ca/signed/{0}.pem'.format(hostname)
     if os.path.exists(req_file_path):
         os.remove(req_file_path)
     elif os.path.exists(sig_file_path):
