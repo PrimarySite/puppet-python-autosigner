@@ -41,11 +41,11 @@ def clean_cert(hostname):
 def save_cert(stdin, tmp_file):
     # We need to save this as a file so that the system tools can
     # access it
-    with open(tmp_file, 'w') as w:
-        w.write('{}'.format(stdin))
+    with open(tmp_file, 'wb') as w:
+        w.write(stdin)
 
 
-def get_challenge_password(tmp_file):
+def get_challenge_password():
 
     # There's not a python library to do this so we need to
     # rely on the system tools to parse this for us.
@@ -63,23 +63,24 @@ def get_challenge_password(tmp_file):
         'grep',
         'challengePassword',
     ], stdin=csr.stdout, stdout=subprocess.PIPE)
-    password = subprocess.Popen([
+    token = subprocess.check_output([
         'cut',
         '-f2-',
-        '-d\\:'
-    ], stdin=cp_line.stdout).communicate()
+        '-d:'
+    ], stdin=cp_line.stdout)
 
     # Clean up the temp file as we don't want the OS drive filling
     # up with these files and also we don't want to leave challenge
     # passwords littering the /tmp directory
-    os.remove(tmp_file)
-    return password
+    return token.decode('utf-8').replace('\n','')
 
 
-def check_jwt(audience, token):
+def check_jwt(audience):
     # This function checks the validity of the token and audience and returns a
     # dictionary
     request = google.auth.transport.requests.Request()
+    token = get_challenge_password()
+
     try:
         payload = id_token.verify_token(token, request=request, audience=audience)
     except ValueError:
@@ -92,12 +93,13 @@ def check_jwt(audience, token):
         # run the check with the fqdn as a cmdline arg and the cert a stdin redirect
         with open(tmp_file, 'r') as tf:
             subprocess.Popen([
-                '/usr/local/bin/autosign',
+                '/usr/local/bin/autosign-validator',
                 cmdargs.hostname], stdin=tf
             ).communicate()
         # We don't want the puppet master to sign the certificate because of this
         # autosigner so we exit 1 here.  The above autosigner may have signed this
         # already if it's a jail with a valid token.
+        os.remove(tmp_file)
         exit(1)
     # We need to return the payload here if we got through the try/except for use
     # in the payload checking function below
@@ -105,6 +107,7 @@ def check_jwt(audience, token):
 
 
 def check_payload(payload):
+    os.remove(tmp_file)
     if payload['google']['compute_engine']['project_number'] not in project_numbers:
         print('Project ID not recognised')
         exit(1)
@@ -119,8 +122,7 @@ def check_payload(payload):
 def main(stdin):
     clean_cert(cmdargs.hostname)
     save_cert(stdin,tmp_file)
-    token = get_challenge_password(tmp_file)
-    payload = check_jwt(audience, token)
+    payload = check_jwt(audience)
     check_payload(payload)
 
 
