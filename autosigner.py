@@ -85,14 +85,14 @@ def check_jwt(audience):
         payload = id_token.verify_token(token, request=request,
                                         audience=audience)
         return payload
-    except ValueError:
+    except:
         with open(tmp_file, 'r') as tf:
-            subprocess.Popen([
+            ruby_validator = subprocess.run([
                 '/usr/local/bin/autosign-validator',
                 cmdargs.hostname], stdin=tf
-            ).communicate()
+            )
         os.remove(tmp_file)
-        exit(1)
+        exit(ruby_validator.returncode)
 
 
 def check_payload(payload):
