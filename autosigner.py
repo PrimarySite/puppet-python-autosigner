@@ -53,7 +53,7 @@ def get_challenge_password():
     # be the default location for the two *NIX OSes we use
     csr = subprocess.Popen([
         '/usr/bin/openssl',
-        'req',
+        'x509',
         '-text',
         '-noout',
         '-in',
