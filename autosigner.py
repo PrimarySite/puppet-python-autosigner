@@ -39,22 +39,6 @@ tmp_file = '/tmp/{0}'.format(cmdargs.hostname)
 audience = 'http://{}'.format(cmdargs.hostname)
 
 
-def clean_cert(hostname):
-    puppet_ssl_path = '/var/puppet/ssl'
-    req_file_path = '{0}/ca/requests/{1}.pem'.format(puppet_ssl_path,
-                                                     hostname)
-    sig_file_path = '{0}/ca/signed/{1}.pem'.format(puppet_ssl_path,
-                                                   hostname)
-    cert_file_path = '{0}/certs/{1}.pem'.format(puppet_ssl_path, hostname)
-    for fp in [req_file_path, sig_file_path, cert_file_path]:
-        if os.path.exists(fp):
-            try:
-                os.remove(fp)
-            except OSError as e:
-                logging.debug("Failed with: {}".format(e.strerror))
-                logging.debug("Error code: {}".format(e.errno))
-
-
 def save_cert(stdin, tmp_file):
     # We need to save this as a file so that the system tools can
     # access it
@@ -70,7 +54,7 @@ def get_challenge_password():
     # be the default location for the two *NIX OSes we use
     csr = subprocess.Popen([
         '/usr/bin/openssl',
-        'x509',
+        'req',
         '-text',
         '-noout',
         '-in',
@@ -96,31 +80,19 @@ def check_jwt(audience):
     # This function checks the validity of the token and audience and returns a
     # dictionary
     request = google.auth.transport.requests.Request()
-    token = get_challenge_password()
-
     try:
-        payload = id_token.verify_token(token, request=request, audience=audience)
+        token = get_challenge_password()
+        payload = id_token.verify_token(token, request=request,
+                                        audience=audience)
+        return payload
     except ValueError:
-        # This is catching all errors including expiries, which we don't want to do
-        # but I'm not sure how to handle expired certs differently
-
-        # To make this the default autosigner but to fall back to the ruby
-        # autosigner gem if the token verification step above fails we
-        # subprocess at this point and run the ruby autosigner as if we'd never
-        # run the check with the fqdn as a cmdline arg and the cert a stdin redirect
         with open(tmp_file, 'r') as tf:
             subprocess.Popen([
                 '/usr/local/bin/autosign-validator',
                 cmdargs.hostname], stdin=tf
             ).communicate()
-        # We don't want the puppet master to sign the certificate because of this
-        # autosigner so we exit 1 here.  The above autosigner may have signed this
-        # already if it's a jail with a valid token.
         os.remove(tmp_file)
         exit(1)
-    # We need to return the payload here if we got through the try/except for use
-    # in the payload checking function below
-    return payload
 
 
 def check_payload(payload):
@@ -137,7 +109,6 @@ def check_payload(payload):
 
 
 def main(stdin):
-    clean_cert(cmdargs.hostname)
     save_cert(stdin,tmp_file)
     payload = check_jwt(audience)
     check_payload(payload)
