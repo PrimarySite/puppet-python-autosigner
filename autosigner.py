@@ -1,14 +1,28 @@
 #!/usr/bin/env python3.5
 
+# Std lib
 import os
 import sys
 import time
+import logging
 import argparse
 import subprocess
-import google.auth.transport.requests
 
+# Installed 3rd party libs
+import google.auth.transport.requests
 from google.oauth2 import id_token
+
+# Local python files
 from local import project_numbers
+
+
+# Logging configuration
+logger = logging.getLogger('autosigner')
+log_handler = logging.FileHandler('/tmp/puppet-autosign.log')
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+log_handler.setFormatter(formatter)
+logger.addHandler(log_handler)
+logger.setLevel(logging.DEBUG)
 
 
 # Set up the parsing of the hostname which will be used to create the temp file
@@ -27,15 +41,18 @@ audience = 'http://{}'.format(cmdargs.hostname)
 
 def clean_cert(hostname):
     puppet_ssl_path = '/var/puppet/ssl'
-    req_file_path = '{0}/ca/requests/{1}.pem'.format(puppet_ssl_path, hostname)
-    sig_file_path = '{0}/ca/signed/{1}.pem'.format(puppet_ssl_path, hostname)
+    req_file_path = '{0}/ca/requests/{1}.pem'.format(puppet_ssl_path,
+                                                     hostname)
+    sig_file_path = '{0}/ca/signed/{1}.pem'.format(puppet_ssl_path,
+                                                   hostname)
     cert_file_path = '{0}/certs/{1}.pem'.format(puppet_ssl_path, hostname)
-    if os.path.exists(req_file_path):
-        os.remove(req_file_path)
-    if os.path.exists(sig_file_path):
-        os.remove(sig_file_path)
-    if os.path.exists(cert_file_path):
-        os.remove(cert_file_path)
+    for fp in [req_file_path, sig_file_path, cert_file_path]:
+        if os.path.exists(fp):
+            try:
+                os.remove(fp)
+            except OSError as e:
+                logging.debug("Failed with: {}".format(e.strerror))
+                logging.debug("Error code: {}".format(e.errno))
 
 
 def save_cert(stdin, tmp_file):
