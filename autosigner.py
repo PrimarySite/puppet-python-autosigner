@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5
+#!/usr/bin/env python3.6
 
 # Std lib
 import os
@@ -9,7 +9,7 @@ import argparse
 import subprocess
 
 # Installed 3rd party libs
-import google.auth.transport.requests
+from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 
 # Local python files
@@ -79,13 +79,14 @@ def get_challenge_password():
 def check_jwt(audience):
     # This function checks the validity of the token and audience and returns a
     # dictionary
-    request = google.auth.transport.requests.Request()
+    request = Request()
     try:
         token = get_challenge_password()
         payload = id_token.verify_token(token, request=request,
                                         audience=audience)
         return payload
-    except:
+    except Exception as e:
+        print(e)
         with open(tmp_file, 'r') as tf:
             ruby_validator = subprocess.run([
                 '/usr/local/bin/autosign-validator',
@@ -97,15 +98,20 @@ def check_jwt(audience):
 
 def check_payload(payload):
     os.remove(tmp_file)
-    if payload['google']['compute_engine']['project_number'] not in project_numbers:
-        print('Project ID not recognised')
-        exit(1)
-    elif time.time() > payload['exp']:
-        print('Token has expired')
-        exit(1)
+    if payload:
+        if payload['google']['compute_engine']['project_number'] not in project_numbers:
+            print('Project ID not recognised')
+            exit(1)
+        elif time.time() > payload['exp']:
+            print('Token has expired')
+            exit(1)
+        else:
+            print(payload)
+            exit(0)
     else:
-        print(payload)
-        exit(0)
+        print('No payload received!!!')
+        exit(1)
+
 
 
 def main(stdin):
