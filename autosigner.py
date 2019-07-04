@@ -39,6 +39,22 @@ tmp_file = '/tmp/{0}'.format(cmdargs.hostname)
 audience = 'http://{}'.format(cmdargs.hostname)
 
 
+def check_existing_cert(hostname):
+    if hostname:
+        check_in = subprocess.Popen(
+            '/usr/local/bin/puppet cert list {hostname}'.format(hostname=hostname),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True)
+        output, errors = check_in.communicate()
+        if check_in.returncode is 0:
+            remove_cert = subprocess.Popen(
+                '/usr/local/bin/puppet cert clean {hostname}'.format(hostname=hostname),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True).communicate()
+
+
 def save_cert(stdin, tmp_file):
     # We need to save this as a file so that the system tools can
     # access it
@@ -106,7 +122,7 @@ def check_payload(payload):
             print('Token has expired')
             exit(1)
         else:
-            print(payload)
+            check_existing_cert(cmdargs.hostname)
             exit(0)
     else:
         print('No payload received!!!')
