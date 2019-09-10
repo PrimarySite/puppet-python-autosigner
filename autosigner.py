@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 # Std lib
 import os
@@ -15,15 +15,12 @@ from google.oauth2 import id_token
 # Local python files
 from local import project_numbers
 
-
-# Logging configuration
-logger = logging.getLogger('autosigner')
-log_handler = logging.FileHandler('/tmp/puppet-autosign.log')
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-log_handler.setFormatter(formatter)
-logger.addHandler(log_handler)
-logger.setLevel(logging.DEBUG)
-
+# Basic logging config
+logging.basicConfig(
+    filename='/tmp/puppet-autosign.log',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,
+)
 
 # Set up the parsing of the hostname which will be used to create the temp file
 parser = argparse.ArgumentParser(description='Parse the hostname')
@@ -40,19 +37,26 @@ audience = 'http://{}'.format(cmdargs.hostname)
 
 
 def check_existing_cert(hostname):
+    logging.info(f'Hostname is: {hostname}')
     if hostname:
         check_in = subprocess.Popen(
-            '/usr/local/bin/puppet cert list {hostname}'.format(hostname=hostname),
+            f'/usr/local/bin/puppet cert list {hostname}',
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True)
-        output, errors = check_in.communicate()
-        if check_in.returncode is 0:
+        output, error = check_in.communicate()
+        logging.info(output)
+        logging.error(error)
+        if hostname in output:
+            logging.info(f'Removing certificate for {hostname}!')
             remove_cert = subprocess.Popen(
-                '/usr/local/bin/puppet cert clean {hostname}'.format(hostname=hostname),
+                f'/usr/local/bin/puppet cert clean {hostname}',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                shell=True).communicate()
+                shell=True)
+            output, error = remove_cert.communicate()
+            logging.info(output)
+            logging.error(error)
 
 
 def save_cert(stdin, tmp_file):
@@ -77,11 +81,11 @@ def get_challenge_password():
         tmp_file
     ], stdout=subprocess.PIPE)
     cp_line = subprocess.Popen([
-        'grep',
+        '/usr/bin/grep',
         'challengePassword',
     ], stdin=csr.stdout, stdout=subprocess.PIPE)
     token = subprocess.check_output([
-        'cut',
+        '/usr/bin/cut',
         '-f2-',
         '-d:'
     ], stdin=cp_line.stdout)
@@ -102,7 +106,7 @@ def check_jwt(audience):
                                         audience=audience)
         return payload
     except Exception as e:
-        print(e)
+        logging.error(str(e))
         with open(tmp_file, 'r') as tf:
             ruby_validator = subprocess.run([
                 '/usr/local/bin/autosign-validator',
@@ -115,23 +119,28 @@ def check_jwt(audience):
 def check_payload(payload):
     os.remove(tmp_file)
     if payload:
-        if payload['google']['compute_engine']['project_number'] not in project_numbers:
-            print('Project ID not recognised')
-            exit(1)
-        elif time.time() > payload['exp']:
-            print('Token has expired')
-            exit(1)
-        else:
-            check_existing_cert(cmdargs.hostname)
-            exit(0)
+        if payload.get('google'):
+            if payload['google'].get('compute_engine'):
+                if payload['google']['compute_engine'].get('project_number'):
+                    if payload['google']['compute_engine']['project_number'] not in project_numbers:
+                        logging.error('Project ID not recognised')
+                        exit(1)
+                    elif time.time() > payload['exp']:
+                        logging.error('Token has expired')
+                        exit(1)
+                    else:
+                        check_existing_cert(cmdargs.hostname)
+                        exit(0)
+        logging.error('Key error in payload!')
+        exit(1)
     else:
-        print('No payload received!!!')
+        logging.error('No payload received!!!')
         exit(1)
 
 
 
 def main(stdin):
-    save_cert(stdin,tmp_file)
+    save_cert(stdin, tmp_file)
     payload = check_jwt(audience)
     check_payload(payload)
 
