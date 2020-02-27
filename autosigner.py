@@ -38,25 +38,15 @@ audience = 'http://{}'.format(cmdargs.hostname)
 
 def check_existing_cert(hostname):
     logging.info(f'Hostname is: {hostname}')
-    if hostname:
-        check_in = subprocess.Popen(
-            f'/usr/local/bin/puppet cert list {hostname}',
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True)
-        output, error = check_in.communicate()
-        logging.info(output)
-        logging.error(error)
-        if hostname in output:
-            logging.info(f'Removing certificate for {hostname}!')
-            remove_cert = subprocess.Popen(
-                f'/usr/local/bin/puppet cert clean {hostname}',
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=True)
-            output, error = remove_cert.communicate()
-            logging.info(output)
-            logging.error(error)
+    try:
+        if subprocess.check_output([f"/usr/local/bin/puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True):
+            subprocess.run([f"/usr/local/bin/puppet cert clean {hostname}"])
+            logging.info(f"Cleaned existing cert for {hostname}")
+    except subprocess.CalledProcessError as error:
+        logging.error(error.cmd)
+        logging.error(error.output)
+        logging.error(error.returncode)
+        logging.error(error.stdout)
 
 
 def save_cert(stdin, tmp_file):
