@@ -21,7 +21,7 @@ puppet_dir = '/usr/local/etc/puppet'
 try:
     linux_distros = ['ubuntu']
     if str(name()).lower() in linux_distros:
-        puppet_dir = '/etc/puppet'
+        puppet_dir = '/etc/puppetlabs/puppet'
 except NameError as e:
     pass
 
