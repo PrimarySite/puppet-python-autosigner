@@ -1,46 +1,41 @@
 #!/usr/bin/env python3
 
-# Std lib
-import os
+# Standard Library
+import argparse
+import logging
+import subprocess
 import sys
 import time
-import logging
-import argparse
-import subprocess
 
-# Installed 3rd party libs
+# 3rd-party
+from cryptography import x509
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 
-# Local python files
-from local import project_numbers
+# Project
+from config import project_numbers
 
 # Basic logging config
 logging.basicConfig(
-    filename='/tmp/puppet-autosign.log',
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename="/tmp/puppet-autosign.log",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.DEBUG,
 )
 
-# Set up the parsing of the hostname which will be used to create the temp file
-parser = argparse.ArgumentParser(description='Parse the hostname')
-parser.add_argument('hostname', type=str)
-cmdargs = parser.parse_args()
-
-
-# This needs to exist so that openssl can parse it
-tmp_file = '/tmp/{0}'.format(cmdargs.hostname)
-# This is going to be http://<fqdn>.  I don't think that it actually matters what
-# the content of it is, except that it's the same as was used at the other end
-# and it needs to have a scheme.
-audience = 'http://{}'.format(cmdargs.hostname)
+ENV = {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/opt/puppetlabs/bin"
+}
 
 
 def check_existing_cert(hostname):
-    logging.info(f'Hostname is: {hostname}')
+    logging.info(f"Hostname is: {hostname}")
     try:
-        if subprocess.check_output([f"/usr/local/bin/puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True):
-            subprocess.run([f"/usr/local/bin/puppet cert clean {hostname}"])
+        if subprocess.check_output(
+            [f"puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV
+        ):
+            subprocess.run(
+                [f"puppet cert clean {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV
+            )
             logging.info(f"Cleaned existing cert for {hostname}")
     except subprocess.CalledProcessError as error:
         logging.error(error.cmd)
@@ -49,93 +44,68 @@ def check_existing_cert(hostname):
         logging.error(error.stdout)
 
 
-def save_cert(stdin, tmp_file):
-    # We need to save this as a file so that the system tools can
-    # access it
-    with open(tmp_file, 'wb') as w:
-        w.write(stdin)
-
-
-def get_challenge_password():
-
-    # There's not a python library to do this so we need to
-    # rely on the system tools to parse this for us.
-    # I've hardcoded the path to openssl here ... it seems to
-    # be the default location for the two *NIX OSes we use
-    csr = subprocess.Popen([
-        '/usr/bin/openssl',
-        'req',
-        '-text',
-        '-noout',
-        '-in',
-        tmp_file
-    ], stdout=subprocess.PIPE)
-    cp_line = subprocess.Popen([
-        '/usr/bin/grep',
-        'challengePassword',
-    ], stdin=csr.stdout, stdout=subprocess.PIPE)
-    token = subprocess.check_output([
-        '/usr/bin/cut',
-        '-f2-',
-        '-d:'
-    ], stdin=cp_line.stdout)
-
-    # Clean up the temp file as we don't want the OS drive filling
-    # up with these files and also we don't want to leave challenge
-    # passwords littering the /tmp directory
-    return token.decode('utf-8').replace('\n','')
-
-
-def check_jwt(audience):
-    # This function checks the validity of the token and audience and returns a
-    # dictionary
-    request = Request()
-    try:
-        token = get_challenge_password()
-        payload = id_token.verify_token(token, request=request,
-                                        audience=audience)
-        return payload
-    except Exception as e:
-        logging.error(str(e))
-        with open(tmp_file, 'r') as tf:
-            ruby_validator = subprocess.run([
-                '/usr/local/bin/autosign-validator',
-                cmdargs.hostname], stdin=tf
-            )
-        os.remove(tmp_file)
-        exit(ruby_validator.returncode)
-
-
 def check_payload(payload):
-    os.remove(tmp_file)
-    if payload:
-        if payload.get('google'):
-            if payload['google'].get('compute_engine'):
-                if payload['google']['compute_engine'].get('project_number'):
-                    if payload['google']['compute_engine']['project_number'] not in project_numbers:
-                        logging.error('Project ID not recognised')
-                        exit(1)
-                    elif time.time() > payload['exp']:
-                        logging.error('Token has expired')
-                        exit(1)
-                    else:
-                        check_existing_cert(cmdargs.hostname)
-                        exit(0)
-        logging.error('Key error in payload!')
-        exit(1)
-    else:
-        logging.error('No payload received!!!')
+    try:
+        project_number = payload["google"]["compute_engine"]["project_number"]
+    except KeyError:
+        logging.error("Key error in payload!")
         exit(1)
 
+    if project_number not in project_numbers:
+        logging.error("Project ID not recognised")
+        return False
+    elif time.time() > payload["exp"]:
+        logging.error("Token has expired")
+        return False
+    else:
+        return True
+
+
+def jail_validation(node_fqdn, csr):
+    ruby_validator = subprocess.run(
+        ["autosign-validator", node_fqdn], input=csr, stderr=subprocess.STDOUT, shell=True, env=ENV
+    )
+
+    if ruby_validator.returncode == 0:
+        check_existing_cert(node_fqdn)
+
+    exit(ruby_validator.returncode)
+
+
+def gcp_instance_validation(node_fqdn, challenge_password, audience):
+    request = Request()
+    payload = id_token.verify_token(challenge_password, request=request, audience=audience)
+
+    if check_payload(payload):
+        check_existing_cert(node_fqdn)
+        exit(0)
+    else:
+        exit(1)
+
+
+def decode_csr(csr):
+    crypto_csr = x509.load_pem_x509_csr(csr)
+    challenge_password = crypto_csr.get_attribute_for_oid(x509.oid.AttributeOID.CHALLENGE_PASSWORD)
+    return challenge_password
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("node_fqdn")
+    args = parser.parse_args()
+    return args
 
 
 def main(stdin):
-    save_cert(stdin, tmp_file)
-    payload = check_jwt(audience)
-    check_payload(payload)
+    args = get_args()
+    audience = f"http://{args.node_fqdn}"
+    challenge_password = decode_csr(stdin)
+
+    if "jail" in args.node_fqdn:
+        jail_validation(args.node_fqdn, stdin)
+    else:
+        gcp_instance_validation(args.node_fqdn, challenge_password, audience)
 
 
 if __name__ == "__main__":
-    pass
-    #### Run a function
     main(sys.stdin.buffer.read())
