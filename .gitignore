@@ -143,3 +143,6 @@ key.pem
 .vagrant
 
 .idea
+
+settings.py
+.vscode

@@ -1,6 +1,6 @@
 # Autosigner
 
-The details of how the autosign mechanism works can he found [here](https://puppet.com/docs/puppet/6/ssl_autosign.html).
+The details of how the autosign mechanism works can be found [here](https://puppet.com/docs/puppet/6/ssl_autosign.html).
 
 In summary, the autosign executable is run by the Puppet master server process. It is given the certname (FQDN) of the node as the first argument. The CSR in pem format is provided over stdin.
 

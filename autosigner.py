@@ -13,7 +13,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 
 # Project
-from config import project_numbers
+from settings import project_numbers
 
 # Basic logging config
 logging.basicConfig(
@@ -30,12 +30,8 @@ ENV = {
 def check_existing_cert(hostname):
     logging.info(f"Hostname is: {hostname}")
     try:
-        if subprocess.check_output(
-            [f"puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV
-        ):
-            subprocess.run(
-                [f"puppet cert clean {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV
-            )
+        if subprocess.check_output([f"puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV):
+            subprocess.run([f"puppet cert clean {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV)
             logging.info(f"Cleaned existing cert for {hostname}")
     except subprocess.CalledProcessError as error:
         logging.error(error.cmd)
@@ -62,9 +58,7 @@ def check_payload(payload):
 
 
 def jail_validation(node_fqdn, csr):
-    ruby_validator = subprocess.run(
-        ["autosign-validator", node_fqdn], input=csr, stderr=subprocess.STDOUT, shell=True, env=ENV
-    )
+    ruby_validator = subprocess.run(["autosign-validator", node_fqdn], input=csr, stderr=subprocess.STDOUT, shell=True, env=ENV)
 
     if ruby_validator.returncode == 0:
         check_existing_cert(node_fqdn)
