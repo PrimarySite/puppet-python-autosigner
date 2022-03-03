@@ -22,9 +22,7 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
-ENV = {
-    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/opt/puppetlabs/bin"
-}
+ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/opt/puppetlabs/bin"}
 
 
 def check_existing_cert(hostname):
@@ -44,17 +42,17 @@ def check_payload(payload):
     try:
         project_number = payload["google"]["compute_engine"]["project_number"]
     except KeyError:
-        logging.error("Key error in payload!")
+        logging.error("Could not get project number from payload")
         exit(1)
 
-    if project_number not in project_numbers:
-        logging.error("Project ID not recognised")
-        return False
-    elif time.time() > payload["exp"]:
+    if time.time() > payload["exp"]:
         logging.error("Token has expired")
         return False
-    else:
+    elif project_number in project_numbers:
         return True
+    else:
+        logging.error("Project ID not recognised")
+        return False
 
 
 def jail_validation(node_fqdn, csr):
@@ -67,8 +65,7 @@ def jail_validation(node_fqdn, csr):
 
 
 def gcp_instance_validation(node_fqdn, challenge_password, audience):
-    request = Request()
-    payload = id_token.verify_token(challenge_password, request=request, audience=audience)
+    payload = id_token.verify_token(challenge_password, request=Request(), audience=audience)
 
     if check_payload(payload):
         check_existing_cert(node_fqdn)
