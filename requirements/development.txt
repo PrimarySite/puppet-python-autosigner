@@ -1,0 +1,11 @@
+-r production.txt
+
+black
+ipython
+isort
+mkdocs
+mkdocs-material
+mkdocs-material-extensions
+mkdocstrings
+mypy
+pytest
