@@ -42,8 +42,8 @@ def get_os_etc():
     return os_etc
 
 
-def dump_jwt_to_file(jwt_response, os_type):
-    with open(f"{puppet_dir}/csr_attributes.yaml", "w") as csr_attributes_file:
+def dump_jwt_to_file(jwt_response, os_etc):
+    with open(f"{os_etc}/csr_attributes.yaml", "w") as csr_attributes_file:
         yaml.dump(jwt_response, csr_attributes_file, default_flow_style=False)
 
 
