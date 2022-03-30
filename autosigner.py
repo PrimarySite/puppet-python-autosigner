@@ -12,8 +12,6 @@ from cryptography import x509
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
 
-# Project
-from settings import project_numbers
 
 # Basic logging config
 logging.basicConfig(
@@ -23,6 +21,7 @@ logging.basicConfig(
 )
 
 ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/opt/puppetlabs/bin"}
+PROJECT_NUMBERS = [197490292429,369653172086,486936945290,868921898489,705126435018,117370217113]
 
 
 def check_existing_cert(hostname):
@@ -48,7 +47,7 @@ def check_payload(payload):
     if time.time() > payload["exp"]:
         logging.error("Token has expired")
         return False
-    elif project_number in project_numbers:
+    elif project_number in PROJECT_NUMBERS:
         return True
     else:
         logging.error("Project ID not recognised")
