@@ -4,7 +4,7 @@
 import socket
 
 # 3rd-party
-import httpx
+import requests
 import yaml
 
 try:
@@ -19,8 +19,7 @@ URL = f"http://metadata.google.internal/computeMetadata/v1/instance/service-acco
 
 
 def query_google_jwt():
-    with httpx.Client() as client:
-        response = client.get(URL, headers=METADATA_HEADERS)
+    response = requests.get(URL, headers=METADATA_HEADERS)
 
     jwt_response = dict(custom_attributes=dict(challengePassword=response.text))
 
