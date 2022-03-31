@@ -11,6 +11,7 @@ import time
 from cryptography import x509
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
+from secret import secret_key
 
 
 # Basic logging config
@@ -41,10 +42,11 @@ def check_payload(payload):
         return False
 
 
-def jail_validation(node_fqdn, csr):
-    ruby_validator = subprocess.run(["autosign-validator", node_fqdn], input=csr, stderr=subprocess.STDOUT, shell=True, env=ENV)
-
-    exit(ruby_validator.returncode)
+def jail_validation(node_fqdn, challenge_password):
+    if challenge_password == secret_key:
+        exit(0)
+    else:
+        exit(1)
 
 
 def gcp_instance_validation(node_fqdn, challenge_password, audience):
@@ -75,7 +77,7 @@ def main(stdin):
     challenge_password = decode_csr(stdin)
 
     if "jail" in args.node_fqdn:
-        jail_validation(args.node_fqdn, stdin)
+        jail_validation(args.node_fqdn, challenge_password)
     else:
         gcp_instance_validation(args.node_fqdn, challenge_password, audience)
 
