@@ -24,19 +24,6 @@ ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/sn
 PROJECT_NUMBERS = [197490292429,369653172086,486936945290,868921898489,705126435018,117370217113]
 
 
-def check_existing_cert(hostname):
-    logging.info(f"Hostname is: {hostname}")
-    try:
-        if subprocess.check_output([f"puppet cert list {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV):
-            subprocess.run([f"puppet cert clean {hostname}"], stderr=subprocess.STDOUT, shell=True, env=ENV)
-            logging.info(f"Cleaned existing cert for {hostname}")
-    except subprocess.CalledProcessError as error:
-        logging.error(error.cmd)
-        logging.error(error.output)
-        logging.error(error.returncode)
-        logging.error(error.stdout)
-
-
 def check_payload(payload):
     try:
         project_number = payload["google"]["compute_engine"]["project_number"]
@@ -57,9 +44,6 @@ def check_payload(payload):
 def jail_validation(node_fqdn, csr):
     ruby_validator = subprocess.run(["autosign-validator", node_fqdn], input=csr, stderr=subprocess.STDOUT, shell=True, env=ENV)
 
-    if ruby_validator.returncode == 0:
-        check_existing_cert(node_fqdn)
-
     exit(ruby_validator.returncode)
 
 
@@ -67,7 +51,6 @@ def gcp_instance_validation(node_fqdn, challenge_password, audience):
     payload = id_token.verify_token(challenge_password, request=Request(), audience=audience)
 
     if check_payload(payload):
-        check_existing_cert(node_fqdn)
         exit(0)
     else:
         exit(1)
