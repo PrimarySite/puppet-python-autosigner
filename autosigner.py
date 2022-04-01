@@ -11,7 +11,6 @@ import time
 from cryptography import x509
 from google.auth.transport.requests import Request
 from google.oauth2 import id_token
-from secret import secret_key
 
 
 # Basic logging config
@@ -43,7 +42,7 @@ def check_payload(payload):
 
 
 def jail_validation(node_fqdn, challenge_password):
-    if challenge_password == secret_key:
+    if challenge_password == b"jail":
         exit(0)
     else:
         exit(1)
